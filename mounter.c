@@ -104,6 +104,7 @@ struct MountData
 	UBYTE zero[2];
 	BOOL wasLastDev;
 	BOOL wasLastLun;
+	BOOL slowSpinup;
 	int blocksize;
 };
 
@@ -1007,6 +1008,9 @@ struct MountStruct
 	// LUNs
 	// Offset 20.
 	BOOL luns;
+	// Short/Long Spinup
+	// Offset 22.
+	BOOL slowSpinup;
 };
 
 // Return values:
@@ -1038,6 +1042,7 @@ LONG MountDrive(struct MountStruct *ms)
 			dbg("SysBase=%p ExpansionBase=%p DosBase=%p\n", md->SysBase, md->ExpansionBase, md->DOSBase);
 			md->configDev = ms->configDev;
 			md->creator = ms->creatorName;
+			md->slowSpinup = ms->slowSpinup;
 			port = W_CreateMsgPort(SysBase);
 			if(port) {
 				request = (struct IOExtTD*)W_CreateIORequest(port, sizeof(struct IOExtTD), SysBase);
@@ -1131,6 +1136,7 @@ int mount_drives(struct ConfigDev *cd, struct Library *dev)
 	ms.configDev = cd;
 	ms.SysBase =  SysBase;
 	ms.luns = !(dip_switches & BIT(7));  // 1: LUNs enabled 0: LUNs disabled
+	ms.slowSpinup = !(dip_switches & BIT(4));  // 0: Short Spinup 1: Long Spinup
 
 	ret = MountDrive(&ms);
 

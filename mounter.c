@@ -793,6 +793,19 @@ static void AddNode(struct PartitionBlock *part, struct ParameterPacket *pp, str
 	}
 }
 
+static void ProcessPatchFlags(ULONG patchFlags, ULONG *dstPatch, ULONG *srcPatch)
+{
+	// Process PatchFlags.
+	while (patchFlags) {
+		if (patchFlags & 1) {
+			*dstPatch = *srcPatch;
+		}
+		patchFlags >>= 1;
+		srcPatch++;
+		dstPatch++;
+	}
+}
+
 // Parse PART block, mount drive.
 static ULONG ParsePART(UBYTE *buf, ULONG block, ULONG filesysblock, struct MountData *md)
 {
@@ -820,18 +833,7 @@ static ULONG ParsePART(UBYTE *buf, ULONG block, ULONG filesysblock, struct Mount
 			struct DeviceNode *dn = MakeDosNode(pp);
 			if (dn) {
 				if (fse) {
-					// Process PatchFlags
-					ULONG *dstPatch = &dn->dn_Type;
-					ULONG *srcPatch = &fse->fse_Type;
-					ULONG patchFlags = fse->fse_PatchFlags;
-					while (patchFlags) {
-						if (patchFlags & 1) {
-							*dstPatch = *srcPatch;
-						}
-						patchFlags >>= 1;
-						srcPatch++;
-						dstPatch++;
-					}
+					ProcessPatchFlags(fse->fse_PatchFlags, &dn->dn_Type, &fse->fse_Type);
 				}
 				dbg("Mounting partition\n");
 #if NO_CONFIGDEV
@@ -1038,18 +1040,7 @@ static LONG ScanCDROM(struct MountData *md)
 		return -1;
 	}
 
-	// Process PatchFlags.
-	ULONG *dstPatch = &node->dn_Type;
-	ULONG *srcPatch = &fse->fse_Type;
-	ULONG patchFlags = fse->fse_PatchFlags;
-	while (patchFlags) {
-		if (patchFlags & 1) {
-			*dstPatch = *srcPatch;
-		}
-		patchFlags >>= 1;
-		srcPatch++;
-		dstPatch++;
-	}
+	ProcessPatchFlags(fse->fse_PatchFlags, &node->dn_Type, &fse->fse_Type);
 
 	AddBootNode(bootPri, ADNF_STARTPROC, node, md->configDev);
 	cnt++;
@@ -1128,18 +1119,7 @@ static LONG register_legacy(struct MountData *md, UBYTE bootable, UBYTE type, UL
 		return -1;
 	}
 
-	// Process PatchFlags.
-	ULONG *dstPatch = &node->dn_Type;
-	ULONG *srcPatch = &fse->fse_Type;
-	ULONG patchFlags = fse->fse_PatchFlags;
-	while (patchFlags) {
-		if (patchFlags & 1) {
-			*dstPatch = *srcPatch;
-		}
-		patchFlags >>= 1;
-		srcPatch++;
-		dstPatch++;
-	}
+	ProcessPatchFlags(fse->fse_PatchFlags, &node->dn_Type, &fse->fse_Type);
 
 	AddBootNode(bootPri, ADNF_STARTPROC, node, md->configDev);
 	cnt++;

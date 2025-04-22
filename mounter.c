@@ -43,6 +43,7 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/doshunks.h>
+#include <hardware/cia.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -94,6 +95,8 @@
 extern UBYTE entrypoint, entrypoint_end;
 extern UBYTE bootblock, bootblock_end;
 #endif
+
+static volatile struct CIA * const ciaa = (struct CIA *)0x0bfe001;
 
 struct MountData
 {
@@ -902,12 +905,19 @@ static void AddNode(struct PartitionBlock *part, struct ParameterPacket *pp, str
 		bootPri = -128;
 	} else {
 		bootPri = pp->de.de_BootPri;
-		// is there a 'drivename' for this kickstart?
+		// Do we have a bootpartition for this kickstart?
 		if(CompareBSTRNoCase(part->pb_DriveName, bootname)==TRUE) {
 			bootPri++; // make priority a bit higher
 		}
+		// Do we have a setup bootpartition? 
+		bootname[5]=bootname[6]='0';
+		if(CompareBSTRNoCase(part->pb_DriveName, bootname)==TRUE) {
+		        if((ciaa->ciapra & CIAF_GAMEPORT1)==0) {
+			          bootPri+=2; // make priority a bit more higher
+			}
+		}
 	}
-
+	
 	if (ExpansionBase->LibNode.lib_Version >= 37) {
 		// KS 2.0+
 		if (!md->DOSBase && bootPri > -128) {

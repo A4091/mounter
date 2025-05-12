@@ -43,7 +43,6 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/doshunks.h>
-#include <hardware/cia.h>
 
 #include <string.h>
 #include <stdio.h>
@@ -63,6 +62,11 @@
 #include "a4091.h"
 #include "attach.h"
 #include "legacy.h"
+#endif
+
+#ifdef BOOTXX
+#include <hardware/cia.h>
+static volatile struct CIA * const ciaa = (struct CIA *)0x0bfe001;
 #endif
 
 #ifndef SID_TYPE
@@ -95,8 +99,6 @@
 extern UBYTE entrypoint, entrypoint_end;
 extern UBYTE bootblock, bootblock_end;
 #endif
-
-static volatile struct CIA * const ciaa = (struct CIA *)0x0bfe001;
 
 struct MountData
 {
@@ -887,10 +889,15 @@ static void AddNode(struct PartitionBlock *part, struct ParameterPacket *pp, str
 	struct ExecBase *SysBase = md->SysBase;
 	struct ExpansionBase *ExpansionBase = md->ExpansionBase;
 	struct DosLibrary *DOSBase = md->DOSBase;
+
+#ifndef BOOTXX
+	LONG bootPri = (part->pb_Flags & PBFF_BOOTABLE) ? pp->de.de_BootPri : -128;
+#else
 	LONG bootPri;
 	char bootname[8];
 	UWORD major;
-	
+
+	// If there is a partition named BOOTXX where XX matches the kickstart version prioritize that partition
 	major=(ExpansionBase->LibNode.lib_Version)%100;  // we assume version number is under 100, but better safe than sorry
 	bootname[0]=0x06;
 	bootname[1]='B';
@@ -909,15 +916,16 @@ static void AddNode(struct PartitionBlock *part, struct ParameterPacket *pp, str
 		if(CompareBSTRNoCase(part->pb_DriveName, bootname)==TRUE) {
 			bootPri++; // make priority a bit higher
 		}
-		// Do we have a setup bootpartition? 
+
+		// If there is a BOOT00 partition and joystick fire is pressed - boot from this partition
 		bootname[5]=bootname[6]='0';
 		if(CompareBSTRNoCase(part->pb_DriveName, bootname)==TRUE) {
-		        if((ciaa->ciapra & CIAF_GAMEPORT1)==0) {
-			          bootPri+=2; // make priority a bit more higher
+			if((ciaa->ciapra & CIAF_GAMEPORT1)==0) {
+				bootPri+=2; // make priority a bit more higher
 			}
 		}
 	}
-	
+#endif
 	if (ExpansionBase->LibNode.lib_Version >= 37) {
 		// KS 2.0+
 		if (!md->DOSBase && bootPri > -128) {

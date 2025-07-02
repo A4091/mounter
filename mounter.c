@@ -1011,12 +1011,10 @@ static LONG ParseRDSK(UBYTE *buf, struct MountData *md)
 		}
 		partblock = ParsePART(buf, partblock, filesysblock, md);
 	}
-#ifdef A4091
-	md->wasLastDev = !asave->ignore_last && (flags & RDBFF_LAST) != 0;
-	md->wasLastLun = (flags & RDBFF_LASTLUN) != 0;
-#else
+
 	md->wasLastDev = (flags & RDBFF_LAST) != 0;
-#endif
+	md->wasLastLun = (flags & RDBFF_LASTLUN) != 0;
+
 	return md->ret;
 }
 
@@ -1556,11 +1554,11 @@ next_lun:
 								case DG_CDROM:
 								case DG_WORM:
 								case DG_OPTICAL_DISK:
-#ifdef A4091
-									if (!asave->cdrom_boot) {
+									if (!ms->cdBoot) {
 										printf("CDROM boot disabled.\n");
 										break;
 									}
+#ifdef A4091
 									ret = ScanRDSK(md);
 									if (ret==-1)
 										ret = ScanCDROM(md);
@@ -1594,12 +1592,10 @@ next_lun:
 								goto next_lun;
 							}
 
-#ifndef NO_RDBLAST
-							if (md->wasLastDev) {
+							if (md->wasLastDev && !ms->ignoreLast) {
 								dbg("RDBFF_LAST exit\n");
 								break;
 							}
-#endif
 						} else {
 							dbg("OpenDevice(%s,%"PRId32") failed: %"PRId32"\n", ms->deviceName, unitNum, (BYTE)err);
 						}
@@ -1641,9 +1637,11 @@ int mount_drives(struct ConfigDev *cd, struct Library *dev)
 	ms.unitNum = unitNum;
 	ms.creatorName = NULL;
 	ms.configDev = cd;
-	ms.SysBase =  SysBase;
+	ms.SysBase = SysBase;
 	ms.luns = !(dip_switches & BIT(7));  // 1: LUNs enabled 0: LUNs disabled
 	ms.slowSpinup = !(dip_switches & BIT(4));  // 0: Short Spinup 1: Long Spinup
+	ms.cdBoot = asave->cdrom_boot;
+	ms.ignoreLast = asave->ignore_last;
 
 	ret = MountDrive(&ms);
 

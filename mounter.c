@@ -1180,14 +1180,15 @@ static bool isDataCD(struct IOStdReq *ior)
 
 // CheckPVD
 // Check for "CDTV" or "AMIGA BOOT" as the System ID in the PVD
-static BOOL CheckPVD(struct IOStdReq *ior, struct ExecBase *SysBase)
+// Returns: -1 on error, 0 if not CDTV/AMIGA BOOT, 1 if bootable
+static LONG CheckPVD(struct IOStdReq *ior, struct ExecBase *SysBase)
 {
 	const char sys_id_1[] = "CDTV";
 	const char sys_id_2[] = "AMIGA BOOT";
 	const char iso_id[]   = "CD001";
 
 	BYTE err = 0;
-	BOOL ret = FALSE;
+	LONG ret = -1;
 	char *buf = NULL;
 
 	if (!(buf = AllocMem(2048,MEMF_ANY|MEMF_CLEAR))) goto done;
@@ -1207,9 +1208,7 @@ static BOOL CheckPVD(struct IOStdReq *ior, struct ExecBase *SysBase)
 	if (err == 0) {
 		// Check ISO ID String & for PVD Version & Type code
 		if ((strncmp(iso_id,id_string,5) == 0) && buf[0] == 1 && buf[6] == 1) {
-			if (strncmp(sys_id_1,system_id,strlen(sys_id_1)) == 0 || strncmp(sys_id_2,system_id,strlen(sys_id_2)) == 0) {
-				ret = true; // CDTV or AMIGA BOOT
-			}
+			ret = (strncmp(sys_id_1,system_id,strlen(sys_id_1)) == 0 || strncmp(sys_id_2,system_id,strlen(sys_id_2)) == 0);
 		}
 	}
 
@@ -1226,12 +1225,7 @@ static LONG ScanCDROM(struct MountData *md)
 	struct FileSysEntry *fse=NULL;
 	char dosName[] = "\3CD0"; // BCPL string
 	LONG bootPri;
-
-	fse=find_filesystem(0x43443031, 0x43445644, md->SysBase);
-	if (!fse) {
-		printf("Could not load filesystem\n");
-		return -1;
-	}
+	LONG isBootable;
 
 	if (!UnitIsReady((struct IOStdReq *)md->request))
 		return -1;
@@ -1240,10 +1234,23 @@ static LONG ScanCDROM(struct MountData *md)
 		return -1;
 
 	// "CDTV" or "AMIGA BOOT"?
-	if (CheckPVD((struct IOStdReq *)md->request,SysBase)) {
-		bootPri = 2;  // Yes, give priority
+	isBootable = CheckPVD((struct IOStdReq *)md->request,SysBase);
+
+	if (isBootable == -1) {
+		// ISO PVD Not found, RDB CD?
+		return ScanRDSK(md);
 	} else {
-		bootPri = -1; // May not be a boot disk, lower priority than HDD
+		if (isBootable) {
+			bootPri = 2; // Yes, give priority
+		} else {
+			bootPri = -1; // May not be a boot disk, lower priority than HDD
+		}
+	}
+
+	fse=find_filesystem(0x43443031, 0x43445644, md->SysBase);
+	if (!fse) {
+		printf("Could not load filesystem\n");
+		return -1;
 	}
 
 	struct ParameterPacket pp;
@@ -1558,14 +1565,9 @@ next_lun:
 										printf("CDROM boot disabled.\n");
 										break;
 									}
-#ifdef A4091
-									ret = ScanRDSK(md);
-									if (ret==-1)
-										ret = ScanCDROM(md);
-									break;
-#else
 									ret = ScanCDROM(md);
-#endif
+									break;
+
 								case DG_DIRECT_ACCESS: // DISK
 									ret = ScanRDSK(md);
 #ifdef DISKLABELS

@@ -151,7 +151,10 @@ struct __attribute__((packed)) SCSI_CD_TOC {
 // Get Block size of unit
 BYTE GetGeometry(struct IOExtTD *req, struct DriveGeometry *geometry)
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds="
 	struct ExecBase *SysBase = *(struct ExecBase **)4UL;
+#pragma GCC diagnostic pop
 
 	req->iotd_Req.io_Command = TD_GETGEOMETRY;
 	req->iotd_Req.io_Data    = geometry;
@@ -1060,7 +1063,11 @@ static struct FileSysEntry *find_filesystem(ULONG id1, ULONG id2, struct ExecBas
 // Check if there is a disc inserted
 static bool UnitIsReady(struct IOStdReq *req)
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds="
 	struct ExecBase *SysBase = *(struct ExecBase **)4UL;
+#pragma GCC diagnostic pop
+
 	BYTE err;
 
 	// First spin up the disc
@@ -1086,7 +1093,10 @@ static bool UnitIsReady(struct IOStdReq *req)
 // Check if this is a data disc by reading the TOC and checking that track 1 is a data track.
 static bool isDataCD(struct IOStdReq *ior)
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds="
 	struct ExecBase *SysBase = *(struct ExecBase **)4UL;
+#pragma GCC diagnostic pop
 	bool ret = false;
 
 	BYTE err;

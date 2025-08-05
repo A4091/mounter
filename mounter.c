@@ -127,7 +127,7 @@ struct MountData
 #define SCSI_CD_MAX_TRACKS 100
 #define SCSI_CMD_READ_TOC 0x43
 
-struct __attribute__((packed)) SCSI_TOC_TRACK_DESCRIPTOR {
+struct __packed SCSI_TOC_TRACK_DESCRIPTOR {
     UBYTE reserved1;
     UBYTE adrControl;
     UBYTE trackNumber;
@@ -138,7 +138,7 @@ struct __attribute__((packed)) SCSI_TOC_TRACK_DESCRIPTOR {
     UBYTE frame;
 };
 
-struct __attribute__((packed)) SCSI_CD_TOC {
+struct __packed __aligned(2) SCSI_CD_TOC {
     UWORD length;
     UBYTE firstTrack;
     UBYTE lastTrack;

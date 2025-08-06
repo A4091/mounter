@@ -138,7 +138,7 @@ struct __packed SCSI_TOC_TRACK_DESCRIPTOR {
     UBYTE frame;
 };
 
-struct __packed __aligned(2) SCSI_CD_TOC {
+struct __packed __attribute__((aligned(2))) SCSI_CD_TOC {
     UWORD length;
     UBYTE firstTrack;
     UBYTE lastTrack;

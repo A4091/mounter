@@ -70,6 +70,10 @@
 #define SID_TYPE 0x1F
 #endif
 
+#ifndef HD_WIDESCSI
+#define HD_WIDESCSI 8
+#endif
+
 #define TRACE 1
 #undef TRACE_LSEG
 #define Trace printf
@@ -1512,9 +1516,18 @@ LONG MountDrive(struct MountStruct *ms)
 					ULONG target;
 					ULONG lun = 0;
 					for (target = 0; target < 8; target++, lun = 0) {
+						// Skip the host controller ID
+						if (target == ms->hostId)
+							continue;
 						ULONG unitNum;
 next_lun:
-						unitNum = target + lun * 10;
+						if (target > 7 || lun > 7) {
+							// Phase V wide SCSI scheme for IDs/LUNs > 7
+							unitNum = lun * 10 * 1000 + target * 10 + HD_WIDESCSI;
+						} else {
+							// Traditional scheme for IDs/LUNs <= 7
+							unitNum = target + lun * 10;
+						}
 						dbg("OpenDevice('%s', %"PRId32", %p, 0)\n", ms->deviceName, unitNum, request);
 						UBYTE err = OpenDevice(ms->deviceName, unitNum, (struct IORequest*)request, 0);
 						if (err == 0) {

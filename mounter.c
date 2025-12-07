@@ -1294,9 +1294,22 @@ static LONG register_legacy(struct MountData *md, UBYTE bootable, UBYTE type, UL
 	struct FileSysEntry *fse=NULL;
 	char dosName[] = "MS0";
 	static unsigned int cnt = 0;
-	LONG bootPri = -1;
+	LONG bootPri;
 	ULONG pend = pstart + plen - 1;
 	ULONG cs,ce,h,s;
+
+	if (cnt > 9) {
+		printf("Error: Too many partitions, skipping MS%d\n", cnt);
+		cnt++;
+		return -1;
+	}
+
+	if (type != 0x00 && type != 0x01 && type != 0x04 &&
+	    type != 0x06 && type != 0x0B && type != 0x0C && type != 0x0E) {
+		printf("Warning: Partition type 0x%02x may not be FAT\n", type);
+	}
+
+	bootPri = bootable ? 0 : -1;
 
 	lba2chs(pstart,pend, max_lba, &cs, &ce, & h, &s);
 
@@ -1345,10 +1358,18 @@ static LONG register_legacy(struct MountData *md, UBYTE bootable, UBYTE type, UL
 	return 1;
 }
 
+#define MAX_EXTENDED_PARTITIONS 16
+
 unsigned long parse_extended(struct MountData *md, int extended, unsigned long start, unsigned long max_lba)
 {
 	struct mbr *mbr = (struct mbr *)md->buf;
 	unsigned long new_start;
+
+	if (extended > 4 + MAX_EXTENDED_PARTITIONS) {
+		printf("Warning: Extended partition limit (%d) reached\n",
+		       MAX_EXTENDED_PARTITIONS);
+		return 0;
+	}
 
 	printf("   %2d   ", extended++);
 	printf("%c   %02x %8lx %8lx\n", mbr->part[0].status & 0x80 ? '*':' ',
@@ -1364,7 +1385,7 @@ unsigned long parse_extended(struct MountData *md, int extended, unsigned long s
 
 	if (mbr->part[1].type == 5) {
 		readblock(md->buf, start + new_start, 0xffffffff, md);
-		parse_extended(md, extended, start +new_start, max_lba);
+		parse_extended(md, extended, start + new_start, max_lba);
 	}
 
 	return 0;
@@ -1412,6 +1433,8 @@ static LONG ParseMBR(UBYTE *buf, struct MountData *md)
 
 static void print_guid(GUID *x)
 {
+	(void)x; // In case we turned debugging off.
+
 	// Somebody has got to be proud of this mixed endian prank.
 
 	printf("%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
@@ -1422,40 +1445,60 @@ static void print_guid(GUID *x)
 			x->u.UUID.node[3], x->u.UUID.node[4], x->u.UUID.node[5]);
 }
 
+// Microsoft Basic Data Partition GUID (used for FAT and NTFS)
+// EBD0A0A2-B9E5-4433-87C0-68B6B72699C7
+static const GUID GUID_BASIC_DATA = {{
+	{ 0xEBD0A0A2, 0xB9E5, 0x4433, 0x87, 0xC0,
+	  { 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7 } }
+}};
+
+static int guid_equal(const GUID *a, const GUID *b)
+{
+	return memcmp(a->u.raw, b->u.raw, 16) == 0;
+}
+
 static LONG ParseGPT(UBYTE *buf, struct MountData *md)
 {
 	struct gpt *gpt=(struct gpt *)buf;
-
-	printf(" part start at: %lld\n", __bswap64(gpt->entries_lba));
-	printf(" Number of partitions: %d\n", __bswap32(gpt->number_of_entries));
-	printf(" size of entry: %d\n", __bswap32(gpt->size_of_entry));
-
-	int pstart = __bswap64(gpt->entries_lba);
+	uint64_t max_lba = __bswap64(gpt->last_usable_lba);
+	uint64_t pstart = __bswap64(gpt->entries_lba);
 	int numparts = __bswap32(gpt->number_of_entries);
 	int psize = __bswap32(gpt->size_of_entry);
-
 	int i, pos = 0;
 
-	for (i=0; i<numparts; i++) {
-		if (i%4 == 0) {
-			pos=0;
+	printf(" part start at: %lld\n", pstart);
+	printf(" Number of partitions: %d\n", numparts);
+	printf(" size of entry: %d\n", psize);
+
+	for (i = 0; i < numparts; i++) {
+		if (i % 4 == 0) {
+			pos = 0;
 			readblock(md->buf, pstart++, 0xffffffff, md);
 		}
 		struct gpt_partition *gpt_par = (struct gpt_partition *)(md->buf + (pos * psize));
 		pos++;
 
 		/* skip empty partitions */
-		if (gpt_par->first_lba == 0 &&
-				gpt_par->last_lba == 0)
+		if (gpt_par->first_lba == 0 && gpt_par->last_lba == 0)
 			continue;
 
-		printf("%d. %8llx - %8llx ", i, __bswap64(gpt_par->first_lba),
-				__bswap64(gpt_par->last_lba));
+		uint64_t first_lba = __bswap64(gpt_par->first_lba);
+		uint64_t last_lba = __bswap64(gpt_par->last_lba);
+
+		printf("%d. %8llx - %8llx ", i, first_lba, last_lba);
 		print_guid(&gpt_par->partition_type);
 		printf("\n");
+
+		if (guid_equal(&gpt_par->partition_type, &GUID_BASIC_DATA)) {
+			register_legacy(md, 0, 0, (ULONG)first_lba,
+					(ULONG)(last_lba - first_lba + 1),
+					(ULONG)max_lba);
+		} else {
+			printf("   Skipping non-FAT partition type\n");
+		}
 	}
 
-	return 0L;
+	return md->ret;
 }
 
 static LONG ScanMBR(struct MountData *md)

@@ -1233,7 +1233,7 @@ static LONG ScanCDROM(struct MountData *md)
 	pp.dosname              = dosName + 1;
 	pp.execname             = md->devicename;
 	pp.unitnum              = md->unitnum;
-	pp.de.de_TableSize      = sizeof(struct DosEnvec);
+	pp.de.de_TableSize      = 16; // Up to DE_DOSTYPE
 	pp.de.de_SizeBlock      = 2048 >> 2;
 	pp.de.de_Surfaces       = 1;
 	pp.de.de_SectorPerBlock = 1;

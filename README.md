@@ -66,9 +66,13 @@ partitions.
   passed to the `MountDrive` function. It defines the parameters for a mounting
   session.
     * `deviceName`: The name of the device driver to use (e.g., `scsi.device`).
-    * `unitNum`: Currently ignored. `MountDrive()` always scans targets 0-7
-      (and their LUNs, if enabled). The field is kept so the structure layout
-      does not change.
+    * `unitNum`: The units to scan. If `NULL`, `MountDrive()` scans SCSI
+      targets 0-7, skipping `hostId`. Otherwise it points to an array of
+      `ULONG`s: the number of units, followed by the unit numbers, e.g.
+      `{ 3, 0, 1, 2 }`. The entries are passed to `OpenDevice()` as they are
+      (LUN 0), so a wide SCSI target above 7 must be given in the Phase V
+      form, `target * 10 + 8`. `hostId` is not applied to the list. If
+      `luns` is set, the mounter adds the LUN to each unit number itself.
     * `creatorName`: A string to identify the creator of the filesystem
       entries added to `FileSystem.resource`. May be `NULL`.
     * `configDev`: A pointer to the `ConfigDev` structure of the autoconfig
@@ -83,7 +87,7 @@ partitions.
       LUN scanning, spin-up delays, CD booting, and whether scanning continues
       to later device units after an RDB with `RDBFF_LAST` is found.
     * `hostId`: The host controller's own SCSI ID, which is skipped during the
-      scan. Set to 255 for non-SCSI controllers.
+      default scan (`unitNum` is `NULL`). Set to 255 for non-SCSI controllers.
 
 * **`struct MountData` (`mounter.c`)**: An internal state-management structure
   used during the `MountDrive` execution. It holds pointers to opened
@@ -103,8 +107,9 @@ The logical flow of the `MountDrive` function is as follows:
       device driver.
 
 2.  **Device Scanning Loop**:
-    * Iterate through SCSI targets 0-7, skipping `hostId`, and through LUNs
-      if `luns` is set.
+    * Iterate through the units in `unitNum` (or SCSI targets 0-7, skipping
+      `hostId`, if `unitNum` is `NULL`), and through LUNs 0-7 of each unit if
+      `luns` is set.
     * For each unit, attempt to `OpenDevice()`.
 
 3.  **Partition Scheme Identification**:

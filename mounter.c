@@ -616,7 +616,7 @@ static struct FileSysEntry *FSHDProcess(struct FileSysHeaderBlock *fshb, ULONG d
 	struct ExecBase *SysBase = md->SysBase;
 	struct FileSysEntry *result_fse = NULL;
 	const UBYTE *creator = md->creator ? md->creator : md->zero;
-	const char resourceName[] = "FileSystem.resource";
+	static const char resourceName[] = "FileSystem.resource";
 
 	Forbid();
 	struct FileSysResource *fsr = OpenResource(FSRNAME);
@@ -1172,9 +1172,9 @@ static bool isDataCD(struct IOStdReq *ior)
 // Returns: -1 on error, 0 if not CDTV/AMIGA BOOT, 1 if bootable, 2 if not ISO
 static LONG CheckPVD(struct IOStdReq *ior, struct ExecBase *SysBase)
 {
-	const char sys_id_1[] = "CDTV";
-	const char sys_id_2[] = "AMIGA BOOT";
-	const char iso_id[]   = "CD001";
+	static const char sys_id_1[] = "CDTV";
+	static const char sys_id_2[] = "AMIGA BOOT";
+	static const char iso_id[]   = "CD001";
 
 	BYTE err = 0;
 	LONG ret = -1;

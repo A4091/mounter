@@ -1538,8 +1538,9 @@ static LONG ScanMBR(struct MountData *md)
 }
 #endif
 
-// Scans SCSI targets 0-7 (skipping ms->hostId), and LUNs 0-7 if ms->luns
-// is set, and mounts what it finds. ms->unitNum is not used.
+// Scans the units in ms->unitNum (or SCSI targets 0-7, skipping ms->hostId,
+// if ms->unitNum is NULL), and LUNs 0-7 of each if ms->luns is set, and
+// mounts what it finds.
 //
 // Return value: the scan result of the last unit that could be opened.
 // -1 = No RDB (or bootable CD) found, disk error or RDB block checksum error.
@@ -1571,20 +1572,25 @@ LONG MountDrive(struct MountStruct *ms)
 			if(port) {
 				request = (struct IOExtTD*)W_CreateIORequest(port, sizeof(struct IOExtTD), SysBase);
 				if(request) {
-					ULONG target;
+					ULONG *units = ms->unitNum;
+					ULONG count = units ? units[0] : 8;
+					ULONG i;
 					ULONG lun = 0;
-					for (target = 0; target < 8; target++, lun = 0) {
-						// Skip the host controller ID
-						if (target == ms->hostId)
+					for (i = 0; i < count; i++, lun = 0) {
+						ULONG unit = units ? units[i + 1] : i;
+						// Skip the host controller ID in the default scan
+						if (!units && unit == ms->hostId)
 							continue;
 						ULONG unitNum;
 next_lun:
-						if (target > 7 || lun > 7) {
-							// Phase V wide SCSI scheme for IDs/LUNs > 7
-							unitNum = lun * 10 * 1000 + target * 10 + HD_WIDESCSI;
+						if (lun == 0) {
+							unitNum = unit;
+						} else if (unit > 7 && (unit % 10) == HD_WIDESCSI) {
+							// Phase V wide SCSI scheme (target * 10 + 8)
+							unitNum = lun * 10 * 1000 + unit;
 						} else {
-							// Traditional scheme for IDs/LUNs <= 7
-							unitNum = target + lun * 10;
+							// Traditional scheme (target + lun * 10)
+							unitNum = unit + lun * 10;
 						}
 						dbg("OpenDevice('%s', %"PRId32", %p, 0)\n", ms->deviceName, unitNum, request);
 						UBYTE err = OpenDevice(ms->deviceName, unitNum, (struct IORequest*)request, 0);

@@ -8,8 +8,13 @@ struct MountStruct
 	// Device name. ("myhddriver.device")
 	// Offset 0.
 	const UBYTE *deviceName;
-	// Unused. MountDrive() always scans SCSI targets 0-7 (and LUNs 0-7
-	// if luns is set). Kept so the structure layout does not change.
+	// Units to scan. If NULL: SCSI targets 0-7, skipping hostId.
+	// Otherwise a pointer to an array of ULONGs: the number of units,
+	// followed by the unit numbers, e.g. { 3, 0, 1, 2 }. The entries are
+	// passed to OpenDevice() as they are (LUN 0); a wide SCSI target > 7
+	// must be given in the Phase V form, target * 10 + 8. hostId is not
+	// applied to the list. If luns is set, the mounter adds the LUN to
+	// each unit number itself.
 	// Offset 4.
 	ULONG *unitNum;
 	// Name string used to set Creator field in FileSystem.resource (if KS 1.3) and in FileSystem.resource entries.
